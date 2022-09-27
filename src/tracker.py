@@ -22,11 +22,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
-import sys, socket, random
+import random
+import socket
+import sys
+
 from bencode import bdecode
-from utils import UDPSocket, encode_int32, decode_connection
-from utils import encode_ip, encode_uint64, encode_uint32, encode_uint16
-from utils import decode_ip, decode_uint64, decode_uint32
+from utils import (UDPSocket, decode_connection, decode_ip, decode_uint32,
+                   decode_uint64, encode_int32, encode_ip, encode_uint16,
+                   encode_uint32, encode_uint64)
 
 
 class TrackerException(Exception):
@@ -34,7 +37,9 @@ class TrackerException(Exception):
 
 
 if sys.version_info[0] >= 3:
-    import urllib.request, urllib.parse, urllib.error, urllib.parse
+    import urllib.error
+    import urllib.parse
+    import urllib.request
 
     def parse_url(url):
         return urllib.parse.urlparse(url)
@@ -44,7 +49,9 @@ if sys.version_info[0] >= 3:
         return urllib.request.urlopen(url)
 
 else:
-    import urllib, urlparse
+    import urllib
+
+    import urlparse
 
     def parse_url(url):
         return urlparse.urlparse(url)
@@ -194,7 +201,9 @@ def http_get_peers(
 
 
 if __name__ == "__main__":
-    import os, binascii, logging
+    import binascii
+    import logging
+    import os
 
     peer_id = os.urandom(20)
     info_hash = binascii.unhexlify(

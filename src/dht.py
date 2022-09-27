@@ -22,24 +22,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
-import os, time, socket, hashlib, hmac, threading, logging, random, inspect
-from bencode import bencode, bdecode
-from utils import (
-    encode_uint32,
-    encode_ip,
-    encode_connection,
-    encode_nodes,
-    AsyncTimeout,
-)
-from utils import (
-    decode_uint32,
-    decode_ip,
-    decode_connection,
-    decode_nodes,
-    start_thread,
-    ThreadManager,
-)
-from krpc import KRPCPeer, KRPCError
+import hashlib
+import hmac
+import inspect
+import logging
+import os
+import random
+import socket
+import threading
+import time
+
+from bencode import bdecode, bencode
+from krpc import KRPCError, KRPCPeer
+from utils import (AsyncTimeout, ThreadManager, decode_connection, decode_ip,
+                   decode_nodes, decode_uint32, encode_connection, encode_ip,
+                   encode_nodes, encode_uint32, start_thread)
+
 
 # BEP #0042 - prefix is based on ip and last byte of the node id - 21 most significant bits must match
 #  * ip = ip address in string format eg. "127.0.0.1"

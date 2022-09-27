@@ -22,7 +22,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
-import sys, select, socket, struct, threading, time, collections, logging
+import collections
+import logging
+import select
+import socket
+import struct
+import sys
+import threading
+import time
 
 client_version = (b"XK", 0, 0x01)  # eXperimental Klient 0.0.1
 

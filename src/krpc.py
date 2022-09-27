@@ -22,16 +22,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
-import socket, threading, logging
-from bencode import bencode, bdecode, BTFailure
-from utils import (
-    client_version,
-    AsyncResult,
-    AsyncTimeout,
-    encode_uint64,
-    UDPSocket,
-    ThreadManager,
-)
+import logging
+import socket
+import threading
+
+from bencode import BTFailure, bdecode, bencode
+from utils import (AsyncResult, AsyncTimeout, ThreadManager, UDPSocket,
+                   client_version, encode_uint64)
 
 krpc_version = bytes(
     client_version[0] + bytearray([client_version[1], client_version[2]])
