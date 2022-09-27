@@ -10,10 +10,10 @@ before_install:
   - pip install codecov
   - pip install 'coverage<4'
 script:
-  - coverage run -a src/bencode.py
-  - coverage run -a src/crc32c.py
-  - coverage run -a src/krpc.py
-  - coverage run -a src/dht.py
-  - coverage run -a src/tracker.py
+  - coverage run -a src/tinybt/bencode.py
+  - coverage run -a src/tinybt/crc32c.py
+  - coverage run -a src/tinybt/krpc.py
+  - coverage run -a src/tinybt/dht.py
+  - coverage run -a src/tinybt/tracker.py
 after_success:
   - codecov

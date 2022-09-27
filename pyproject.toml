@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tinybt"
+version = "0.0.1"
+authors = [
+  { name="Fred Stober", email="stober@cern.ch"},
+]
+description = "A simple implementation of the Bittorrent DHT"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "black",
+    "isort",
+    "pytest",
+    "pre-commit",
+]
+
+
+[project.urls]
+"Homepage" = "https://github.com/bitplane/tinyBT"
+"Bug Tracker" = "https://github.com/bitplane/tinyBT/issues"
