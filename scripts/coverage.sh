@@ -2,7 +2,7 @@
 
 source venv/bin/activate
 
-coverage run "$(which pytest)" tests
+coverage run --source=src/tinybt "$(which pytest)" tests
 coverage report
 coverage html
 

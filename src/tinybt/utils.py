@@ -27,17 +27,30 @@ import logging
 import select
 import socket
 import struct
-import sys
 import threading
 import time
 
 client_version = (b"XK", 0, 0x01)  # eXperimental Klient 0.0.1
 
-encode_ip = lambda value: socket.inet_aton(value)
-encode_uint16 = lambda value: struct.pack("!H", value)
-encode_uint32 = lambda value: struct.pack("!I", value)
-encode_uint64 = lambda value: struct.pack("!Q", value)
-encode_int32 = lambda value: struct.pack("!i", value)
+
+def encode_ip(ip_string):
+    return socket.inet_aton(ip_string)
+
+
+def encode_uint16(value):
+    return struct.pack("!H", value)
+
+
+def encode_uint32(value):
+    return struct.pack("!I", value)
+
+
+def encode_uint64(value):
+    return struct.pack("!Q", value)
+
+
+def encode_int32(value):
+    return struct.pack("!i", value)
 
 
 def encode_connection(con):
@@ -53,10 +66,20 @@ def encode_nodes(nodes):
     return result
 
 
-decode_ip = lambda value: socket.inet_ntoa(value)
-decode_uint16 = lambda value: struct.unpack("!H", value)[0]
-decode_uint32 = lambda value: struct.unpack("!I", value)[0]
-decode_uint64 = lambda value: struct.unpack("!Q", value)[0]
+def decode_ip(ip_4_bytes):
+    return socket.inet_ntoa(ip_4_bytes)
+
+
+def decode_uint16(value):
+    return struct.unpack("!H", value)[0]
+
+
+def decode_uint32(value):
+    return struct.unpack("!I", value)[0]
+
+
+def decode_uint64(value):
+    return struct.unpack("!Q", value)[0]
 
 
 def decode_connection(con):
@@ -101,7 +124,7 @@ class AsyncResult(object):
 
     def set_result(self, result, source=None):
         self._value = result
-        if source != None:
+        if source is not None:
             self._source = source
         self._event.set()
 
@@ -256,7 +279,7 @@ class NetworkSocket(object):
                     self._send_event.clear()
 
     def _send(self, *args):
-        raise NotImplemented
+        raise NotImplementedError()
 
     def _recv_thread(self):
         tmp = self._recv()
@@ -266,10 +289,10 @@ class NetworkSocket(object):
                 self._recv_event.set()
 
     def _recv(self):
-        raise NotImplemented
+        raise NotImplementedError()
 
     def _close(self):
-        raise NotImplemented
+        raise NotImplementedError()
 
 
 class UDPSocket(NetworkSocket):

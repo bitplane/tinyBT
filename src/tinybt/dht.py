@@ -32,11 +32,19 @@ import socket
 import threading
 import time
 
-from bencode import bdecode, bencode
-from krpc import KRPCError, KRPCPeer
-from utils import (AsyncTimeout, ThreadManager, decode_connection, decode_ip,
-                   decode_nodes, decode_uint32, encode_connection, encode_ip,
-                   encode_nodes, encode_uint32, start_thread)
+from .crc32c import crc32c
+from .krpc import KRPCError, KRPCPeer
+from .utils import (
+    AsyncTimeout,
+    ThreadManager,
+    decode_connection,
+    decode_nodes,
+    decode_uint32,
+    encode_connection,
+    encode_ip,
+    encode_nodes,
+    encode_uint32,
+)
 
 
 # BEP #0042 - prefix is based on ip and last byte of the node id - 21 most significant bits must match
@@ -44,7 +52,6 @@ from utils import (AsyncTimeout, ThreadManager, decode_connection, decode_ip,
 def bep42_prefix(
     ip, crc32_salt, first_node_bits
 ):  # first_node_bits determines the last 3 bits
-    from crc32c import crc32c
 
     ip_asint = decode_uint32(encode_ip(ip))
     value = crc32c(
@@ -60,10 +67,7 @@ def valid_id(node_id, connection):
 
 
 def decode_id(node_id):
-    try:  # python 3
-        return int.from_bytes(node_id, byteorder="big")
-    except:
-        return int(node_id.encode("hex"), 16)
+    return int.from_bytes(node_id, byteorder="big")
 
 
 class DHT_Node(object):
@@ -134,7 +138,9 @@ class DHT_Router(object):
         self._threads.start_continuous_thread(
             _show_status, thread_interval=setup["report_t"], thread_waitfirst=True
         )
+
         # - Limit number of active nodes
+
         def _limit(maxN):
             self._log.debug("Starting limitation of nodes")
             N = len(self.get_nodes())
@@ -152,7 +158,9 @@ class DHT_Router(object):
             maxN=setup["limit_N"],
             thread_waitfirst=True,
         )
+
         # - Redeem random nodes from the blacklist
+
         def _redeem_connections(fraction):
             self._log.debug("Starting redemption of blacklisted nodes")
             remove = int(fraction * len(self._connections_bad))
@@ -228,7 +236,7 @@ class DHT_Router(object):
             for id, node_list in self._nodes.items():
                 result.extend(filter(expression, node_list))
         result.sort(key=sorter)
-        if N == None:
+        if N is None:
             return result
         return result[:N]
 
@@ -593,7 +601,7 @@ class DHT(object):
     ):
         req = {"id": sender_id, "info_hash": info_hash, "port": port, "token": token}
         if (
-            implied_port != None
+            implied_port is not None
         ):  # (optional) "1": port not reliable - remote should use source port
             req["implied_port"] = implied_port
         return self._krpc.send_krpc_query(target_connection, b"announce_peer", **req)

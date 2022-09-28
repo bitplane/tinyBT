@@ -289,11 +289,3 @@ def crc32c(data):
     for byte in data:
         crc = (crc32c_table[(crc ^ byte) & 0xFF] ^ (crc >> 8)) & 0xFFFFFFFF
     return (crc & 0xFFFFFFFF) ^ 0xFFFFFFFF
-
-
-if __name__ == "__main__":
-    import logging
-
-    logging.basicConfig()
-    log = logging.getLogger()
-    log.critical(crc32c(bytearray(b"1")))

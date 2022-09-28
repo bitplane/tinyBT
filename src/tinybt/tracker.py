@@ -26,10 +26,18 @@ import random
 import socket
 import sys
 
-from bencode import bdecode
-from utils import (UDPSocket, decode_connection, decode_ip, decode_uint32,
-                   decode_uint64, encode_int32, encode_ip, encode_uint16,
-                   encode_uint32, encode_uint64)
+from .bencode import bdecode
+from .utils import (
+    UDPSocket,
+    decode_connection,
+    decode_uint32,
+    decode_uint64,
+    encode_int32,
+    encode_ip,
+    encode_uint16,
+    encode_uint32,
+    encode_uint64,
+)
 
 
 class TrackerException(Exception):
@@ -92,21 +100,20 @@ def udp_get_peers(
         timeout = 5
         while True:
             try:
-                data, src = sock.recvfrom(timeout)
-            except:
+                data, _src = sock.recvfrom(timeout)
+            except IOError:
                 data = None
             if not data:
                 timeout *= 2
                 if timeout > 60:
                     break
                 continue
-            try:
-                assert len(data) >= 16
-                action = decode_uint32(data[0:4])
-                remote_tid = decode_uint32(data[4:8])
-                return (action, remote_tid, data[8:])
-            except:
-                raise
+
+            assert len(data) >= 16
+            action = decode_uint32(data[0:4])
+            remote_tid = decode_uint32(data[4:8])
+            return (action, remote_tid, data[8:])
+
         return (None, None, None)
 
     def perform_announce():
@@ -157,9 +164,10 @@ def udp_get_peers(
             if action != action_announce:
                 remote_tid = None
 
-        interval = decode_uint32(data[0:4])
-        num_leech = decode_uint32(data[4:8])
-        num_seed = decode_uint32(data[8:12])
+        # interval = decode_uint32(data[0:4])
+        # num_leech = decode_uint32(data[4:8])
+        # num_seed = decode_uint32(data[8:12])
+
         return list(decode_connections(data[12:]))
 
     try:
@@ -195,7 +203,7 @@ def http_get_peers(
     handle = open_url(tracker_url, query)
     if handle.getcode() == 200:
         decoded = bdecode(handle.read())
-        if not b"peers" in decoded:
+        if b"peers" not in decoded:
             raise TrackerException(decoded.get(b"failure reason", "Unknown failure"))
         return list(decode_connections(decoded.get(b"peers", "")))
 

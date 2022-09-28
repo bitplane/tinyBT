@@ -26,9 +26,15 @@ import logging
 import socket
 import threading
 
-from bencode import BTFailure, bdecode, bencode
-from utils import (AsyncResult, AsyncTimeout, ThreadManager, UDPSocket,
-                   client_version, encode_uint64)
+from .bencode import BTFailure, bdecode, bencode
+from .utils import (
+    AsyncResult,
+    AsyncTimeout,
+    ThreadManager,
+    UDPSocket,
+    client_version,
+    encode_uint64,
+)
 
 krpc_version = bytes(
     client_version[0] + bytearray([client_version[1], client_version[2]])
@@ -236,7 +242,7 @@ class KRPCPeer(object):
                 b"r": message,
             }
             resp.update(top_level_message)
-            if log == None:
+            if not log:
                 log = self._log_local
             if log.isEnabledFor(logging.INFO):
                 log.info("KRPC response to %r:\n\t%r" % (source_connection, resp))
@@ -249,7 +255,7 @@ if __name__ == "__main__":
     # Implement an echo message
     peer = KRPCPeer(
         ("0.0.0.0", 1111),
-        handle_query=lambda send_krpc_response, rec, source_connection: send_krpc_response(
+        handle_query=lambda send_krpc_response, rec, _source_connection: send_krpc_response(
             message="Hello %s!" % rec[b"a"][b"message"]
         ),
     )
