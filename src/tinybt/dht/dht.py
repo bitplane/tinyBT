@@ -1,244 +1,26 @@
-"""
-The MIT License
-
-Copyright (c) 2014-2015 Fred Stober
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-"""
-
 import hashlib
 import hmac
 import inspect
 import logging
 import os
-import random
 import socket
 import threading
 import time
 
-from crc32c import crc32c
+from dht.node import DHT_Node, bep42_prefix, valid_id
+from dht.router import DHT_Router
 from krpc import KRPCError, KRPCPeer
 from utils import (
     AsyncTimeout,
     ThreadManager,
     decode_connection,
+    decode_id,
     decode_nodes,
-    decode_uint32,
     encode_connection,
     encode_ip,
     encode_nodes,
     encode_uint32,
 )
-
-
-# BEP #0042 - prefix is based on ip and last byte of the node id - 21 most significant bits must match
-#  * ip = ip address in string format eg. "127.0.0.1"
-def bep42_prefix(
-    ip, crc32_salt, first_node_bits
-):  # first_node_bits determines the last 3 bits
-
-    ip_asint = decode_uint32(encode_ip(ip))
-    value = crc32c(
-        bytearray(encode_uint32((ip_asint & 0x030F3FFF) | ((crc32_salt & 0x7) << 29)))
-    )
-    return (value & 0xFFFFF800) | ((first_node_bits << 8) & 0x00000700)
-
-
-def valid_id(node_id, connection) -> bool:
-    node_id = bytearray(node_id)
-    vprefix = bep42_prefix(connection[0], node_id[-1], 0)
-    return ((vprefix ^ decode_uint32(node_id[:4])) & 0xFFFFF800) == 0
-
-
-def decode_id(node_id: bytes) -> int:
-    return int.from_bytes(node_id, byteorder="big")
-
-
-class DHT_Node(object):
-    def __init__(self, connection, id, version=None):
-        self.connection = (socket.gethostbyname(connection[0]), connection[1])
-        self.set_id(id)
-        self.version = version
-        self.tokens = {}  # tokens to gain write access to self.values
-        self.values = {}
-        self.attempt = 0
-        self.pending = 0
-        self.last_ping = 0
-
-    def set_id(self, id):
-        self.id = id
-        self.id_cmp = decode_id(id)
-
-    def __repr__(self):
-        return "id:%s con:%15s:%-5d v:%20s c:%5s last:%.2f" % (
-            hex(self.id_cmp),
-            self.connection[0],
-            self.connection[1],
-            repr(self.version),
-            valid_id(self.id, self.connection),
-            time.time() - self.last_ping,
-        )
-
-
-# Trivial node list implementation
-class DHT_Router(object):
-    def __init__(self, name, user_setup={}):
-        setup = {
-            "report_t": 10,
-            "limit_t": 30,
-            "limit_N": 2000,
-            "redeem_t": 300,
-            "redeem_frac": 0.05,
-        }
-        setup.update(user_setup)
-
-        self._log = logging.getLogger(self.__class__.__name__ + ".%s" % name)
-        # This is our (trivial) routing table.
-        self._nodes = {}
-        self._nodes_lock = threading.RLock()
-        self._nodes_protected = set()
-        self._connections_bad = set()
-
-        # Start maintainance threads
-        self._threads = ThreadManager(self._log.getChild("maintainance"))
-        self.shutdown = self._threads.shutdown
-
-        # - Report status of routing table
-        def _show_status():
-            with self._nodes_lock:
-                self._log.info(
-                    "Routing table contains %d ids with %d nodes (%d bad, %s protected)"
-                    % (
-                        len(self._nodes),
-                        sum(map(len, self._nodes.values())),
-                        len(self._connections_bad),
-                        len(self._nodes_protected),
-                    )
-                )
-                if self._log.isEnabledFor(logging.DEBUG):
-                    for node in self.get_nodes():
-                        self._log.debug("\t%r" % node)
-
-        self._threads.start_continuous_thread(
-            _show_status, thread_interval=setup["report_t"], thread_waitfirst=True
-        )
-
-        # - Limit number of active nodes
-
-        def _limit(maxN):
-            self._log.debug("Starting limitation of nodes")
-            N = len(self.get_nodes())
-            if N > maxN:
-                for node in self.get_nodes(
-                    N - maxN,
-                    expression=lambda n: n.connection not in self._connections_bad,
-                    sorter=lambda x: random.random(),
-                ):
-                    self.remove_node(node, force=True)
-
-        self._threads.start_continuous_thread(
-            _limit,
-            thread_interval=setup["limit_t"],
-            maxN=setup["limit_N"],
-            thread_waitfirst=True,
-        )
-
-        # - Redeem random nodes from the blacklist
-
-        def _redeem_connections(fraction):
-            self._log.debug("Starting redemption of blacklisted nodes")
-            remove = int(fraction * len(self._connections_bad))
-            with self._nodes_lock:
-                while self._connections_bad and (remove > 0):
-                    self._connections_bad.pop()
-                    remove -= 1
-
-        self._threads.start_continuous_thread(
-            _redeem_connections,
-            thread_interval=setup["redeem_t"],
-            fraction=setup["redeem_frac"],
-            thread_waitfirst=True,
-        )
-
-    def protect_nodes(self, node_id_list):
-        self._log.info("protect %s" % repr(sorted(node_id_list)))
-        with self._nodes_lock:
-            self._nodes_protected.update(node_id_list)
-
-    def good_node(self, node):
-        with self._nodes_lock:
-            node.attempt = 0
-
-    def remove_node(self, node, force=False):
-        with self._nodes_lock:
-            node.attempt += 1
-            if node.id in self._nodes:
-                max_attempts = 2
-                if valid_id(node.id, node.connection):
-                    max_attempts = 5
-                if force or (
-                    (node.id not in self._nodes_protected)
-                    and (node.attempt > max_attempts)
-                ):
-                    if not force:
-                        self._connections_bad.add(node.connection)
-
-                    def is_not_removed_node(n):
-                        return n.connection != node.connection
-
-                    self._nodes[node.id] = list(
-                        filter(is_not_removed_node, self._nodes[node.id])
-                    )
-                    if not self._nodes[node.id]:
-                        self._nodes.pop(node.id)
-
-    def register_node(self, node_connection, node_id, node_version=None):
-        with self._nodes_lock:
-            if node_connection in self._connections_bad:
-                if self._log.isEnabledFor(logging.DEBUG):
-                    self._log.debug(
-                        "rejected bad connection %s" % repr(node_connection)
-                    )
-                return
-            for node in self._nodes.get(node_id, []):
-                if node.connection == node_connection:
-                    if not node.version:
-                        node.version = node_version
-                    return node
-            if self._log.isEnabledFor(logging.DEBUG):
-                self._log.debug("added connection %s" % repr(node_connection))
-            node = DHT_Node(node_connection, node_id, node_version)
-            self._nodes.setdefault(node_id, []).append(node)
-            return node
-
-    # Return nodes matching a filter expression
-    def get_nodes(self, N=None, expression=lambda n: True, sorter=lambda n: n.id_cmp):
-        if len(self._nodes) == 0:
-            raise RuntimeError("No nodes in routing table!")
-        result = []
-        with self._nodes_lock:
-            for id, node_list in self._nodes.items():
-                result.extend(filter(expression, node_list))
-        result.sort(key=sorter)
-        if N is None:
-            return result
-        return result[:N]
 
 
 class DHT(object):
@@ -617,61 +399,3 @@ class DHT(object):
             send_krpc_reply(id=self._node.id)
 
     _reply_handler[b"announce_peer"] = _announce_peer
-
-
-if __name__ == "__main__":
-    logging.basicConfig()
-    log = logging.getLogger()
-    log.setLevel(logging.INFO)
-    logging.getLogger("DHT").setLevel(logging.INFO)
-    logging.getLogger("DHT_Router").setLevel(logging.ERROR)
-    logging.getLogger("KRPCPeer").setLevel(logging.ERROR)
-    logging.getLogger("KRPCPeer.local").setLevel(logging.ERROR)
-    logging.getLogger("KRPCPeer.remote").setLevel(logging.ERROR)
-
-    # Create a DHT swarm
-    setup = {}
-    bootstrap_connection = ("localhost", 10001)
-    # 	bootstrap_connection = ('router.bittorrent.com', 6881)
-    dht1 = DHT(("0.0.0.0", 10001), bootstrap_connection, setup)
-    dht2 = DHT(("0.0.0.0", 10002), bootstrap_connection, setup)
-    dht3 = DHT(("0.0.0.0", 10003), bootstrap_connection, setup)
-    dht4 = DHT(("0.0.0.0", 10004), ("localhost", 10003), setup)
-    dht5 = DHT(("0.0.0.0", 10005), ("localhost", 10003), setup)
-    dht6 = DHT(("0.0.0.0", 10006), ("localhost", 10005), setup)
-
-    log.critical('starting "ping" test')
-    log.critical("ping: dht1 -> bootstrap = %r" % dht1.dht_ping(bootstrap_connection))
-    log.critical("ping: dht6 -> bootstrap = %r" % dht6.dht_ping(bootstrap_connection))
-
-    log.critical('starting "find_node" test')
-    for idx, node in enumerate(dht3.dht_find_node(dht1._node.id)):
-        log.critical(
-            "find_node: dht3 -> id(dht1) result #%d: %s:%d" % (idx, node[0], node[1])
-        )
-        if idx > 10:
-            break
-
-    import binascii
-
-    info_hash = binascii.unhexlify(
-        "ae3fa25614b753118931373f8feae64f3c75f5cd"
-    )  # Ubuntu 15.10 info hash
-
-    log.critical('starting "get_peers" test')
-    for idx, peer in enumerate(dht5.dht_get_peers(info_hash)):
-        log.critical("get_peers: dht5 -> info_hash result #%d: %r" % (idx, peer))
-
-    log.critical('starting "announce_peer" test')
-    for idx, async_result in enumerate(dht5.dht_announce_peer(info_hash)):
-        log.critical(
-            "announce_peer: dht2 -> close_nodes(info_hash) #%d: %r"
-            % (idx, async_result.get_result(1))
-        )
-
-    log.critical('starting "get_peers" test')
-    for idx, peer in enumerate(dht1.dht_get_peers(info_hash)):
-        log.critical("get_peers: dht1 -> info_hash result #%d: %r" % (idx, peer))
-
-    for dht in [dht1, dht2, dht3, dht4, dht5, dht6]:
-        dht.shutdown()

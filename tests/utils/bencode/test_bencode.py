@@ -1,4 +1,4 @@
-from tinybt.bencode import bencode
+from tinybt.utils.bencode import bencode
 
 
 def test_empty_dict():

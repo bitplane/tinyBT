@@ -1,4 +1,4 @@
-from tinybt.crc32c import crc32c
+from tinybt.utils.crc32c import crc32c
 
 
 def test_empty():

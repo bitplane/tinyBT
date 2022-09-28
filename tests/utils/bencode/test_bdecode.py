@@ -1,6 +1,6 @@
 from pytest import raises
 
-from tinybt.bencode import BTFailure, bdecode
+from tinybt.utils.bencode import BTFailure, bdecode
 
 
 def test_empty_dict():
