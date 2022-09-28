@@ -103,10 +103,8 @@ def bdecode_extra(msg):
 
 
 def bdecode(msg):
-    try:
-        result, pos = bdecode_extra(msg)
-    except (IndexError, KeyError, ValueError):
-        raise BTFailure("invalid bencoded data: %r" % msg)
+    result, pos = bdecode_extra(msg)
+
     if pos != len(msg):
         raise BTFailure("invalid bencoded value (data after valid prefix)")
     return result
