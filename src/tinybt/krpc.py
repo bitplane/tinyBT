@@ -26,8 +26,8 @@ import logging
 import socket
 import threading
 
-from .bencode import BTFailure, bdecode, bencode
-from .utils import (
+from bencode import BTFailure, bdecode, bencode
+from utils import (
     AsyncResult,
     AsyncTimeout,
     ThreadManager,

@@ -32,9 +32,9 @@ import socket
 import threading
 import time
 
-from .crc32c import crc32c
-from .krpc import KRPCError, KRPCPeer
-from .utils import (
+from crc32c import crc32c
+from krpc import KRPCError, KRPCPeer
+from utils import (
     AsyncTimeout,
     ThreadManager,
     decode_connection,
@@ -60,13 +60,13 @@ def bep42_prefix(
     return (value & 0xFFFFF800) | ((first_node_bits << 8) & 0x00000700)
 
 
-def valid_id(node_id, connection):
+def valid_id(node_id, connection) -> bool:
     node_id = bytearray(node_id)
     vprefix = bep42_prefix(connection[0], node_id[-1], 0)
     return ((vprefix ^ decode_uint32(node_id[:4])) & 0xFFFFF800) == 0
 
 
-def decode_id(node_id):
+def decode_id(node_id: bytes) -> int:
     return int.from_bytes(node_id, byteorder="big")
 
 
@@ -272,16 +272,9 @@ class DHT(object):
         self._node = DHT_Node(listen_connection, os.urandom(20))
         self._node_lock = threading.RLock()
         # Start bootstrap process
-        try:
-            tmp = self.ping(bootstrap_connection, sender_id=self._node.id).get_result(
-                timeout=1
-            )
-        except Exception:
-            raise
-            tmp = {
-                b"ip": encode_connection(listen_connection),
-                b"r": {b"id": self._node.id},
-            }
+        tmp = self.ping(bootstrap_connection, sender_id=self._node.id).get_result(
+            timeout=1
+        )
         self._node.connection = decode_connection(tmp[b"ip"])
         self._bootstrap_node = self._nodes.register_node(
             bootstrap_connection, tmp[b"r"][b"id"]

@@ -24,10 +24,12 @@ THE SOFTWARE.
 
 import random
 import socket
-import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
-from .bencode import bdecode
-from .utils import (
+from bencode import bdecode
+from utils import (
     UDPSocket,
     decode_connection,
     decode_uint32,
@@ -44,29 +46,9 @@ class TrackerException(Exception):
     pass
 
 
-if sys.version_info[0] >= 3:
-    import urllib.error
-    import urllib.parse
-    import urllib.request
-
-    def parse_url(url):
-        return urllib.parse.urlparse(url)
-
-    def open_url(tracker_url, query):
-        url = tracker_url + "?" + urllib.parse.urlencode(list(query.items()))
-        return urllib.request.urlopen(url)
-
-else:
-    import urllib
-
-    import urlparse
-
-    def parse_url(url):
-        return urlparse.urlparse(url)
-
-    def open_url(tracker_url, query):
-        url = tracker_url + "?" + urllib.urlencode(query.items())
-        return urllib.urlopen(url)
+def open_url(tracker_url, query):
+    url = tracker_url + "?" + urllib.parse.urlencode(list(query.items()))
+    return urllib.request.urlopen(url)
 
 
 def decode_connections(data):
@@ -92,7 +74,7 @@ def udp_get_peers(
     key=0,
 ):
     event = {"empty": 0, "completed": 1, "started": 2, "stopped": 3}[event]
-    url = parse_url(tracker_url)
+    url = urllib.parse.urlparse(tracker_url)
     conn = (socket.gethostbyname(url.hostname), url.port)
     sock = UDPSocket(("0.0.0.0", 0))
 
@@ -101,7 +83,7 @@ def udp_get_peers(
         while True:
             try:
                 data, _src = sock.recvfrom(timeout)
-            except IOError:
+            except socket.error:
                 data = None
             if not data:
                 timeout *= 2

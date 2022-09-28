@@ -29,6 +29,7 @@ import socket
 import struct
 import threading
 import time
+from typing import Tuple
 
 client_version = (b"XK", 0, 0x01)  # eXperimental Klient 0.0.1
 
@@ -66,23 +67,23 @@ def encode_nodes(nodes):
     return result
 
 
-def decode_ip(ip_4_bytes):
+def decode_ip(ip_4_bytes: bytes) -> str:
     return socket.inet_ntoa(ip_4_bytes)
 
 
-def decode_uint16(value):
+def decode_uint16(value: bytes) -> str:
     return struct.unpack("!H", value)[0]
 
 
-def decode_uint32(value):
+def decode_uint32(value: bytes) -> str:
     return struct.unpack("!I", value)[0]
 
 
-def decode_uint64(value):
+def decode_uint64(value: bytes) -> str:
     return struct.unpack("!Q", value)[0]
 
 
-def decode_connection(con):
+def decode_connection(con: bytes) -> Tuple[bytes, int]:
     return (decode_ip(con[0:4]), decode_uint16(con[4:6]))
 
 
