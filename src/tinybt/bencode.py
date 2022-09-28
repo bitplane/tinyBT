@@ -27,24 +27,16 @@ class BTFailure(Exception):
     pass
 
 
-# Encoding functions ##############################################
-
-import sys
-
-if sys.version_info[0] >= 3:
-    str_to_bytes = lambda x: x.encode("ascii")
-else:
-    str_to_bytes = lambda x: x
-
-
 def bencode_proc(result, x):
     t = type(x)
     if t == str:
-        result.extend((str_to_bytes(str(len(x))), b":", str_to_bytes(x)))
+        str_bytes = x.encode()
+        length = len(str_bytes)
+        result.extend((str(length).encode(), b":", str_bytes))
     elif t == bytes:
-        result.extend((str_to_bytes(str(len(x))), b":", x))
+        result.extend((str(len(x)).encode(), b":", x))
     elif t == int:
-        result.extend((b"i", str_to_bytes(str(x)), b"e"))
+        result.append(f"i{x}e".encode())
     elif t == dict:
         result.append(b"d")
         for k, v in sorted(x.items()):
@@ -118,17 +110,3 @@ def bdecode(msg):
     if pos != len(msg):
         raise BTFailure("invalid bencoded value (data after valid prefix)")
     return result
-
-
-if __name__ == "__main__":
-    import logging
-
-    logging.basicConfig()
-    test = {b"k1": 145, b"k2": {b"sk1": list(range(10)), b"sk2": b"0" * 60}}
-    for x in range(100):
-        assert bdecode(bencode(test)) == test
-    for test_bytes in [b"d5:keyi0ee", b"x3:keyi0ee", b"d3:keyi0ee..."]:
-        try:
-            bdecode(test_bytes)
-        except BTFailure as ex:
-            logging.exception("expected bdecode exception")
