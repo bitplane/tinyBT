@@ -71,16 +71,17 @@ class ThreadManager(object):
         return thread
 
     def start_continuous_thread(self, fun, thread_interval=0, *args, **kwargs):
-        if thread_interval >= 0:
-            self.start_thread(
-                "continuous thread:" + repr(fun),
-                False,
-                self._continuous_thread_wrapper,
-                fun,
-                thread_interval=thread_interval,
-                *args,
-                **kwargs
-            )
+        if thread_interval < 0:
+            return
+        self.start_thread(
+            "continuous thread:" + repr(fun),
+            False,
+            self._continuous_thread_wrapper,
+            fun,
+            thread_interval=thread_interval,
+            *args,
+            **kwargs
+        )
 
     def _continuous_thread_wrapper(
         self,

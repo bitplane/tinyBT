@@ -11,8 +11,6 @@ from dht.node import DHT_Node, bep42_prefix, valid_id
 from dht.router import DHT_Router
 from krpc import KRPCError, KRPCPeer
 from utils import (
-    AsyncTimeout,
-    ThreadManager,
     decode_connection,
     decode_id,
     decode_nodes,
@@ -21,9 +19,14 @@ from utils import (
     encode_nodes,
     encode_uint32,
 )
+from utils.threadmanager import AsyncTimeout, ThreadManager
 
 
-class DHT(object):
+class DHT:
+
+    # Handle remote queries
+    _reply_handler = {}
+
     def __init__(
         self,
         listen_connection,
@@ -31,7 +34,10 @@ class DHT(object):
         user_setup={},
         user_router=None,
     ):
-        """Start DHT peer on given (host, port) and bootstrap connection to the DHT"""
+        """
+        Start DHT peer on given (host, port) and bootstrap connection to the DHT
+        """
+
         setup = {"discover_t": 180, "check_t": 30, "check_N": 10}
         setup.update(user_setup)
         self._log = logging.getLogger(
@@ -116,20 +122,20 @@ class DHT(object):
     def get_external_connection(self):
         return self._node.connection
 
-    def shutdown(self):
-        """This function allows to cleanly shutdown the DHT."""
+    def shutdown(self) -> None:
+        """
+        Cleanly shut down the DHT.
+        """
         self._log.info("shutting down DHT")
         self._threads.shutdown()  # Trigger shutdown of maintainance threads
         self._krpc.shutdown()  # Stop listening for incoming connections
         self._nodes.shutdown()
         self._threads.join()  # Trigger shutdown of maintainance threads
 
-    # Handle remote queries
-    _reply_handler = {}
-
     def _handle_query(self, send_krpc_reply, rec, source_connection):
         if self._log.isEnabledFor(logging.DEBUG):
             self._log.debug("handling query from %r: %r" % (source_connection, rec))
+
         try:
             remote_args_dict = rec[b"a"]
             if b"id" in remote_args_dict:
@@ -155,8 +161,10 @@ class DHT(object):
         except Exception:
             self._log.exception("Error while processing request %r" % rec)
 
-    # Evaluate async KRPC result and notify the routing table about failures
     def _eval_dht_response(self, node, async_result, timeout):
+        """
+        Evaluate async KRPC result and notify the routing table about failures
+        """
         try:
             result = async_result.get_result(timeout)
             node.version = result.get(b"v", node.version)
@@ -172,8 +180,10 @@ class DHT(object):
         async_result.discard_result()
         return {}
 
-    # Iterate KRPC function on closest nodes - query_fun(connection, id, search_value)
     def _iter_krpc_search(self, query_fun, process_fun, search_value, timeout, retries):
+        """
+        Iterate KRPC function on closest nodes - query_fun(connection, id, search_value)
+        """
         id_cmp = decode_id(search_value)
         (returned, used_connections, discovered_nodes) = (set(), {}, set())
         while not self._threads.shutdown_in_progress():
@@ -248,8 +258,10 @@ class DHT(object):
     #      _XYZ(...) - handler to process incoming KRPC calls
 
     # ping methods
-    #   (sync method)
     def dht_ping(self, connection, timeout=5):
+        """
+        sync method
+        """
         try:
             result = self.ping(connection, self._node.id).get_result(timeout)
             if result.get(b"r", {}).get(b"id"):
@@ -260,19 +272,26 @@ class DHT(object):
         except (AsyncTimeout, KRPCError):
             pass
 
-    #   (verbatim, async KRPC method)
     def ping(self, target_connection, sender_id):
+        """
+        verbatim, async KRPC method
+        """
         return self._krpc.send_krpc_query(target_connection, b"ping", id=sender_id)
 
-    #   (reply method)
     def _ping(self, send_krpc_reply, id):
+        """
+        reply method
+        """
         send_krpc_reply(id=self._node.id)
 
     _reply_handler[b"ping"] = _ping
 
     # find_node methods
-    #   (sync method, iterating on close nodes)
     def dht_find_node(self, search_id, timeout=5, retries=2):
+        """
+        sync method, iterating on close nodes
+        """
+
         def process_find_node(node, result):
             for node_id, node_connection in decode_nodes(result.get(b"nodes", b"")):
                 if node_id == search_id:
@@ -282,14 +301,18 @@ class DHT(object):
             self.find_node, process_find_node, search_id, timeout, retries
         )
 
-    #   (verbatim, async KRPC method)
     def find_node(self, target_connection, sender_id, search_id):
+        """
+        verbatim, async KRPC method
+        """
         return self._krpc.send_krpc_query(
             target_connection, b"find_node", id=sender_id, target=search_id
         )
 
-    #   (reply method)
     def _find_node(self, send_krpc_reply, id, target):
+        """
+        reply method
+        """
         id_cmp = decode_id(id)
 
         def select_valid(n):
@@ -308,8 +331,11 @@ class DHT(object):
     _reply_handler[b"find_node"] = _find_node
 
     # get_peers methods
-    #   (sync method, iterating on close nodes)
     def dht_get_peers(self, info_hash, timeout=5, retries=2):
+        """
+        sync method, iterating on close nodes
+        """
+
         def process_get_peers(node, result):
             if result.get(b"token"):
                 node.tokens[info_hash] = result[
@@ -322,14 +348,18 @@ class DHT(object):
             self.get_peers, process_get_peers, info_hash, timeout, retries
         )
 
-    #   (verbatim, async KRPC method)
     def get_peers(self, target_connection, sender_id, info_hash):
+        """
+        verbatim, async KRPC method
+        """
         return self._krpc.send_krpc_query(
             target_connection, b"get_peers", id=sender_id, info_hash=info_hash
         )
 
-    #   (reply method)
     def _get_peers(self, send_krpc_reply, id, info_hash):
+        """
+        reply method
+        """
         token = hmac.new(
             self._token_key, encode_ip(send_krpc_reply.connection[0]), hashlib.sha1
         ).digest()
@@ -355,8 +385,11 @@ class DHT(object):
     _reply_handler[b"get_peers"] = _get_peers
 
     # announce_peer methods
-    #   (sync method, announcing to all nodes giving tokens)
     def dht_announce_peer(self, info_hash, implied_port=1):
+        """
+        sync method, announcing to all nodes giving tokens
+        """
+
         def has_info_hash_token(node):
             return info_hash in node.tokens
 
@@ -370,10 +403,12 @@ class DHT(object):
                 implied_port=implied_port,
             )
 
-    #   (verbatim, async KRPC method)
     def announce_peer(
         self, target_connection, sender_id, info_hash, port, token, implied_port=None
     ):
+        """
+        verbatim, async KRPC method
+        """
         req = {"id": sender_id, "info_hash": info_hash, "port": port, "token": token}
         if (
             implied_port is not None
@@ -381,10 +416,12 @@ class DHT(object):
             req["implied_port"] = implied_port
         return self._krpc.send_krpc_query(target_connection, b"announce_peer", **req)
 
-    #   (reply method)
     def _announce_peer(
         self, send_krpc_reply, id, info_hash, port, token, implied_port=None
     ):
+        """
+        reply method
+        """
         local_token = hmac.new(
             self._token_key, encode_ip(send_krpc_reply.connection[0]), hashlib.sha1
         ).digest()

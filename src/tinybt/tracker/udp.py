@@ -1,6 +1,7 @@
 import random
 import socket
-import urllib
+import urllib.parse
+import urllib.request
 
 from utils import (
     decode_connections,
@@ -12,8 +13,8 @@ from utils import (
     encode_uint32,
     encode_uint64,
 )
+from utils.client import UDPSocket
 from utils.exception import TrackerResponseError
-from utils.socket import UDPSocket
 
 
 # Implementation of BEP #0015 (UDP tracker protocol)

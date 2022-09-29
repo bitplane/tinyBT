@@ -18,20 +18,20 @@ def decode_connections(data):
         data = data[6:]
 
 
-if __name__ == "__main__":
+def test_tracker():
     peer_id = os.urandom(20)
-    ubuntu_1510_info_hash = binascii.unhexlify(
-        "ae3fa25614b753118931373f8feae64f3c75f5cd"
+    transmission_2020_info_hash = binascii.unhexlify(
+        "6000ead3940d1d9e7ee66881aaf5494f3186db40"
     )
-    http_tracker = "http://torrent.ubuntu.com:6969/announce"
+    http_tracker = "http://bt1.archive.org:6969/announce"
     udp_tracker = "udp://tracker.coppersurfer.tk:6969"
     try:
-        peers = http.get_peers(http_tracker, ubuntu_1510_info_hash, peer_id)
+        peers = http.get_peers(http_tracker, transmission_2020_info_hash, peer_id)
         print(peers)
     except Exception:
         logging.exception("Exception during http query")
     try:
-        udp.get_peers(udp_tracker, ubuntu_1510_info_hash, peer_id)
+        udp.get_peers(udp_tracker, transmission_2020_info_hash, peer_id)
         print(peers)
     except Exception:
         logging.exception("Exception during udp query")

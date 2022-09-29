@@ -29,31 +29,31 @@ from typing import Tuple
 client_version = (b"XK", 0, 0x01)  # eXperimental Klient 0.0.1
 
 
-def encode_ip(ip_string):
-    return socket.inet_aton(ip_string)
+def encode_ip(ip_address: str) -> bytes:
+    return socket.inet_aton(ip_address)
 
 
-def encode_uint16(value):
+def encode_uint16(value: int) -> bytes:
     return struct.pack("!H", value)
 
 
-def encode_uint32(value):
+def encode_uint32(value: int) -> bytes:
     return struct.pack("!I", value)
 
 
-def encode_uint64(value):
+def encode_uint64(value: int) -> bytes:
     return struct.pack("!Q", value)
 
 
-def encode_int32(value):
+def encode_int32(value: int) -> bytes:
     return struct.pack("!i", value)
 
 
-def encode_connection(con):
+def encode_connection(con) -> bytes:
     return encode_ip(con[0]) + encode_uint16(con[1])
 
 
-def encode_nodes(nodes):
+def encode_nodes(nodes) -> bytes:
     result = b""
     for node in nodes:
         result += bytes(bytearray(node.id).rjust(20, b"\0")) + encode_connection(
@@ -82,7 +82,7 @@ def decode_connection(con: bytes) -> Tuple[bytes, int]:
     return (decode_ip(con[0:4]), decode_uint16(con[4:6]))
 
 
-def decode_nodes(nodes):
+def decode_nodes(nodes: bytes):
     try:
         while nodes:
             node_id = struct.unpack("20s", nodes[:20])[0]
@@ -94,9 +94,13 @@ def decode_nodes(nodes):
         pass  # catch malformed nodes
 
 
-def decode_connections(data):
+def decode_connections(data: bytes):
     while len(data) >= 6:
         c = decode_connection(data[0:6])
         if c[1] >= 1024:
             yield c
         data = data[6:]
+
+
+def decode_id(node_id: bytes) -> int:
+    return int.from_bytes(node_id, byteorder="big")

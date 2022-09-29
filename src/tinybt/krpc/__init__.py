@@ -2,15 +2,10 @@ import logging
 import socket
 import threading
 
-from utils import (
-    AsyncResult,
-    AsyncTimeout,
-    ThreadManager,
-    UDPSocket,
-    client_version,
-    encode_uint64,
-)
+from utils import client_version, encode_uint64
 from utils.bencode import BTFailure, bdecode, bencode
+from utils.client import UDPSocket
+from utils.threadmanager import AsyncResult, AsyncTimeout, ThreadManager
 
 krpc_version = bytes(
     client_version[0] + bytearray([client_version[1], client_version[2]])
@@ -87,7 +82,9 @@ class KRPCPeer(object):
             return result
 
     def shutdown(self):
-        """This function allows to cleanly shutdown the KRPCPeer."""
+        """T
+        Cleanly shut down the KRPCPeer
+        """
         self._threads.shutdown()
         self._sock.close()
         with self._transaction_lock:
@@ -97,10 +94,10 @@ class KRPCPeer(object):
                 )
         self._threads.join()
 
-    # Private members #################################################
-
     def _cleanup_transactions(self, timeout):
-        # Remove transactions older than 1min
+        """
+        Remove transactions older than 1min
+        """
         with self._transaction_lock:
             timeout_transactions = [
                 t for t, ar in self._transaction.items() if ar.get_age() > timeout
@@ -124,7 +121,7 @@ class KRPCPeer(object):
             recv_data = self._sock.recvfrom(timeout=0.2)
             if not recv_data:
                 return
-            (encoded_rec, source_connection) = recv_data
+            encoded_rec, source_connection = recv_data
             try:
                 rec = bdecode(encoded_rec)
             except BTFailure:
@@ -135,10 +132,11 @@ class KRPCPeer(object):
                     )
                 return
         except Exception:
-            return self._log_msg.exception(
+            self._log_msg.exception(
                 "Exception while handling KRPC requests from %r:\n\t%r"
                 % (source_connection, encoded_rec)
             )
+            return
         try:
             if rec[b"y"] in [b"r", b"e"]:  # Response / Error message
                 t = rec[b"t"]
@@ -225,7 +223,7 @@ class KRPCPeer(object):
             self._sock.sendto(bencode(resp), source_connection)
 
 
-if __name__ == "__main__":
+def test_krpc():
     logging.basicConfig()
     logging.getLogger().setLevel(logging.DEBUG)
     # Implement an echo message

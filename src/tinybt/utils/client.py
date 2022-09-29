@@ -4,10 +4,10 @@ import select
 import socket
 import threading
 
-from .threadmanager import ThreadManager
+from utils.threadmanager import ThreadManager
 
 
-class NetworkSocket(object):
+class NetworkSocket:
     def __init__(self, name):
         self._log = logging.getLogger(self.__class__.__name__).getChild(name)
         self._threads = ThreadManager(self._log)
@@ -33,7 +33,7 @@ class NetworkSocket(object):
 
     # Blocking read - with timeout
     def recvfrom(self, timeout=None):
-        result = None
+        result = (b"", None)
         if self._recv_event.wait(timeout):
             if self._recv_queue:
                 result = self._recv_queue.pop()
@@ -51,8 +51,6 @@ class NetworkSocket(object):
             self._recv_event.set()
         self._close()
         self._threads.join()
-
-    # Private members #################################################
 
     def _info_thread(self):
         if (

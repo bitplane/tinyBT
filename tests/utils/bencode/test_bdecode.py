@@ -1,6 +1,6 @@
 from pytest import raises
 
-from tinybt.utils.bencode import BTFailure, bdecode
+from tinybt.utils.bencode import BEncodingError, bdecode
 
 
 def test_empty_dict():
@@ -40,20 +40,20 @@ def test_nested():
 
 
 def test_invalid():
-    with raises(BTFailure):
+    with raises(BEncodingError):
         bdecode(b"qqq not valid bencoded data")
 
 
 def test_extra_data():
-    with raises(BTFailure):
+    with raises(BEncodingError):
         bdecode(b"4:too long")
 
 
 def test_truncated():
-    with raises(BTFailure):
+    with raises(BEncodingError):
         bdecode(b"4000:nelly the elephant packed her trunk wrong")
 
 
 def test_bad_type():
-    with raises(BTFailure):
+    with raises(BEncodingError):
         bdecode(b"i^e")

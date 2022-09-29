@@ -2,7 +2,8 @@ import logging
 
 from dht.dht import DHT
 
-if __name__ == "__main__":
+
+def test_dht():
     logging.basicConfig()
     log = logging.getLogger()
     log.setLevel(logging.INFO)

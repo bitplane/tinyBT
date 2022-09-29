@@ -29,95 +29,101 @@ class DHT_Router(object):
         self._threads = ThreadManager(self._log.getChild("maintainance"))
         self.shutdown = self._threads.shutdown
 
-        # - Report status of routing table
-        def _show_status():
-            with self._nodes_lock:
-                self._log.info(
-                    "Routing table contains %d ids with %d nodes (%d bad, %s protected)"
-                    % (
-                        len(self._nodes),
-                        sum(map(len, self._nodes.values())),
-                        len(self._connections_bad),
-                        len(self._nodes_protected),
-                    )
-                )
-                if self._log.isEnabledFor(logging.DEBUG):
-                    for node in self.get_nodes():
-                        self._log.debug("\t%r" % node)
-
         self._threads.start_continuous_thread(
-            _show_status, thread_interval=setup["report_t"], thread_waitfirst=True
+            self._show_status, thread_interval=setup["report_t"], thread_waitfirst=True
         )
 
-        # - Limit number of active nodes
-
-        def _limit(maxN):
-            self._log.debug("Starting limitation of nodes")
-            N = len(self.get_nodes())
-            if N > maxN:
-                for node in self.get_nodes(
-                    N - maxN,
-                    expression=lambda n: n.connection not in self._connections_bad,
-                    sorter=lambda x: random.random(),
-                ):
-                    self.remove_node(node, force=True)
-
         self._threads.start_continuous_thread(
-            _limit,
+            self._limit,
             thread_interval=setup["limit_t"],
             maxN=setup["limit_N"],
             thread_waitfirst=True,
         )
 
-        # - Redeem random nodes from the blacklist
-
-        def _redeem_connections(fraction):
-            self._log.debug("Starting redemption of blacklisted nodes")
-            remove = int(fraction * len(self._connections_bad))
-            with self._nodes_lock:
-                while self._connections_bad and (remove > 0):
-                    self._connections_bad.pop()
-                    remove -= 1
-
         self._threads.start_continuous_thread(
-            _redeem_connections,
+            self._redeem_connections,
             thread_interval=setup["redeem_t"],
             fraction=setup["redeem_frac"],
             thread_waitfirst=True,
         )
 
-    def protect_nodes(self, node_id_list):
+    def _limit(self, maxN):
+        """
+        Limit number of active nodes
+        """
+        self._log.debug("Starting limitation of nodes")
+        N = len(self.get_nodes())
+        if N > maxN:
+            for node in self.get_nodes(
+                N - maxN,
+                expression=lambda n: n.connection not in self._connections_bad,
+                sorter=lambda x: random.random(),
+            ):
+                self.remove_node(node, force=True)
+
+    def _redeem_connections(self, fraction):
+        """
+        Redeem random nodes from the blacklist
+        """
+        self._log.debug("Starting redemption of blacklisted nodes")
+        remove = int(fraction * len(self._connections_bad))
+        with self._nodes_lock:
+            while self._connections_bad and (remove > 0):
+                self._connections_bad.pop()
+                remove -= 1
+
+    def _show_status(self):
+        """
+        Report status of routing table
+        """
+        with self._nodes_lock:
+            self._log.info(
+                "Routing table contains %d ids with %d nodes (%d bad, %s protected)"
+                % (
+                    len(self._nodes),
+                    sum(map(len, self._nodes.values())),
+                    len(self._connections_bad),
+                    len(self._nodes_protected),
+                )
+            )
+            if self._log.isEnabledFor(logging.DEBUG):
+                for node in self.get_nodes():
+                    self._log.debug("\t%r" % node)
+
+    def protect_nodes(self, node_id_list) -> None:
         self._log.info("protect %s" % repr(sorted(node_id_list)))
         with self._nodes_lock:
             self._nodes_protected.update(node_id_list)
 
-    def good_node(self, node):
+    def good_node(self, node) -> None:
         with self._nodes_lock:
             node.attempt = 0
 
-    def remove_node(self, node, force=False):
+    def remove_node(self, node, force: bool = False) -> None:
         with self._nodes_lock:
             node.attempt += 1
-            if node.id in self._nodes:
-                max_attempts = 2
-                if valid_id(node.id, node.connection):
-                    max_attempts = 5
+            if node.id not in self._nodes:
+                return
 
-                protected = node.id in self._nodes_protected
-                too_many_attempts = node.attempt > max_attempts
+            max_attempts = 2
+            if valid_id(node.id, node.connection):
+                max_attempts = 5
 
-                if force or (too_many_attempts and not protected):
-                    if not force:
-                        self._connections_bad.add(node.connection)
+            protected = node.id in self._nodes_protected
+            too_many_attempts = node.attempt > max_attempts
 
-                    def is_not_removed_node(n):
-                        return n.connection != node.connection
+            if force or (too_many_attempts and not protected):
+                if not force:
+                    self._connections_bad.add(node.connection)
 
-                    self._nodes[node.id] = list(
-                        filter(is_not_removed_node, self._nodes[node.id])
-                    )
-                    if not self._nodes[node.id]:
-                        self._nodes.pop(node.id)
+                def is_not_removed_node(n):
+                    return n.connection != node.connection
+
+                self._nodes[node.id] = list(
+                    filter(is_not_removed_node, self._nodes[node.id])
+                )
+                if not self._nodes[node.id]:
+                    self._nodes.pop(node.id)
 
     def register_node(self, node_connection, node_id, node_version=None):
         with self._nodes_lock:
@@ -136,10 +142,13 @@ class DHT_Router(object):
                 self._log.debug("added connection %s" % repr(node_connection))
             node = DHT_Node(node_connection, node_id, node_version)
             self._nodes.setdefault(node_id, []).append(node)
+
             return node
 
-    # Return nodes matching a filter expression
     def get_nodes(self, N=None, expression=lambda _n: True, sorter=lambda n: n.id_cmp):
+        """
+        Return nodes matching a filter expression
+        """
         if not self._nodes:
             raise RuntimeError("No nodes in routing table!")
 

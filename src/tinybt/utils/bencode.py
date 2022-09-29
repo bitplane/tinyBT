@@ -23,7 +23,7 @@ THE SOFTWARE.
 """
 
 
-class BTFailure(Exception):
+class BEncodingError(Exception):
     pass
 
 
@@ -91,14 +91,14 @@ def bdecode_proc(msg, pos):
             v, pos = bdecode_proc(msg, pos)
             result.append(v)
         return (result, pos + 1)
-    raise BTFailure("invalid bencoded data (invalid token)! %r" % msg)
+    raise BEncodingError("invalid bencoded data (invalid token)! %r" % msg)
 
 
 def bdecode_extra(msg):
     try:
         result, pos = bdecode_proc(bytearray(msg), 0)
     except (IndexError, KeyError, ValueError):
-        raise BTFailure("invalid bencoded data! %r" % msg)
+        raise BEncodingError("invalid bencoded data! %r" % msg)
     return (result, pos)
 
 
@@ -106,5 +106,5 @@ def bdecode(msg):
     result, pos = bdecode_extra(msg)
 
     if pos != len(msg):
-        raise BTFailure("invalid bencoded value (data after valid prefix)")
+        raise BEncodingError("invalid bencoded value (data after valid prefix)")
     return result

@@ -1,15 +1,16 @@
 import socket
 import time
 
-from utils import decode_uint32, encode_ip, encode_uint32
+from utils import decode_id, decode_uint32, encode_ip, encode_uint32
 from utils.crc32c import crc32c
 
 
-# BEP #0042 - prefix is based on ip and last byte of the node id - 21 most significant bits must match
-#  * ip = ip address in string format eg. "127.0.0.1"
-def bep42_prefix(
-    ip, crc32_salt, first_node_bits
-):  # first_node_bits determines the last 3 bits
+def bep42_prefix(ip: str, crc32_salt, first_node_bits):
+    """
+    BEP #0042 - prefix is based on ip and last byte of the node id - 21 most significant bits must match
+    ip = ip address in string format eg. "127.0.0.1"
+    """
+    # first_node_bits determines the last 3 bits
 
     ip_asint = decode_uint32(encode_ip(ip))
     value = crc32c(
@@ -24,11 +25,11 @@ def valid_id(node_id, connection) -> bool:
     return ((vprefix ^ decode_uint32(node_id[:4])) & 0xFFFFF800) == 0
 
 
-def decode_id(node_id: bytes) -> int:
-    return int.from_bytes(node_id, byteorder="big")
+class DHT_Node:
+    """
+    Represents a node in the DHT table
+    """
 
-
-class DHT_Node(object):
     def __init__(self, connection, id, version=None):
         self.connection = (socket.gethostbyname(connection[0]), connection[1])
         self.set_id(id)
